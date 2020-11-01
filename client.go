@@ -5,36 +5,81 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	"os"
 )
 
-func read(conn *net.Conn) {
-	//TODO In a continuous loop, read a message from the server and display it.
-	reader := bufio.NewReader(*conn)
+type Message struct {
+	sender  int
+	message string
+}
+
+func handleError(err error) {
+	// TODO: all
+	// Deal with an error event.
+}
+
+func acceptConns(ln net.Listener, conns chan net.Conn) {
+	// TODO: all
+	// Continuously accept a network connection from the Listener
+	// and add it to the channel for handling connections.
 	for {
-		msg, _ := reader.ReadString('\n')
-		fmt.Println(msg)
+		conn, err := ln.Accept()
+		if err != nil {handleError(err)}
+		conns <- conn
 	}
 }
 
-func write(conn *net.Conn) {
-	//TODO Continually get input from the user and send messages to the server.
-	stdin := bufio.NewReader(os.Stdin)
-	fmt.Println("Enter message to send to the server: ")
+func handleClient(client net.Conn, clientid int, msgs chan Message) {
+	// TODO: all
+	// So long as this connection is alive:
+	// Read in new messages as delimited by '\n's
+	// Tidy up each message and add it to the messages channel,
+	// recording which client it came from.
+	reader := bufio.NewReader(client)
 	for {
-		msg, _ := stdin.ReadString('\n')
-		fmt.Fprintln(*conn, msg)
+		msgString, _ := reader.ReadString('\n')
+		msg := Message{clientid, msgString}
+		msgs <- msg
+		fmt.Println(msgString)
 	}
 }
 
 func main() {
-	// Get the server address and port from the commandline arguments.
-	addrPtr := flag.String("ip", "127.0.0.1:8030", "IP:port string to connect to")
+	// Read in the network port we should listen on, from the commandline argument.
+	// Default to port 8030
+	portPtr := flag.String("port", ":8030", "port to listen on")
 	flag.Parse()
-	//TODO Try to connect to the server
-	conn, _ := net.Dial("tcp", *addrPtr)
-	//TODO Start asynchronously reading and displaying messages
-	go read(&conn)
-	//TODO Start getting and sending user messages.
-	write(&conn)
+
+	//TODO Create a Listener for TCP connections on the port given above.
+	ln,err := net.Listen("tcp",*portPtr)
+
+	//Create a channel for connections
+	conns := make(chan net.Conn)
+	//Create a channel for messages
+	msgs := make(chan Message)
+	//Create a mapping of IDs to connections
+	clients := make(map[int]net.Conn)
+
+	//Start accepting connections
+	if err!=nil{handleError(err)}
+	go acceptConns(ln, conns)
+	for {
+		select {
+		case conn := <-conns:
+			//TODO Deal with a new connection
+			// - assign a client ID
+			// - add the client to the clients channel
+			// - start to asynchronously handle messages from this client
+			client := len(clients)
+			clients[client] = conn
+			go handleClient(conn, client, msgs)
+		case msg := <-msgs:
+			//TODO Deal with a new message
+			// Send the message to all clients that aren't the sender
+			for i:=0;i<len(clients);i++ {
+				if msg.sender != i {
+					_, _ = fmt.Fprintln(clients[i], msg.message)
+				}
+			}
+		}
+	}
 }
