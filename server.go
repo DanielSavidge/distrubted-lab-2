@@ -65,6 +65,7 @@ func main() {
 	for {
 		select {
 		case conn := <-conns:
+			//new
 			//TODO Deal with a new connection
 			// - assign a client ID
 			// - add the client to the clients channel
